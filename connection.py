@@ -5,10 +5,20 @@ from zope import interface
 
 
 class IConnection(interface.Interface):
-    def connect(servers=None, timeout=None, discover=True,
-                retry_time=10, *args, **kwargs):
+    def connect(servers=None, timeout=None, discover=True, retryTime=10,
+                *args, **kwargs):
         """
-        conn
+        connect to elasticsearch
+        """
+
+    def close():
+        """
+        close all connections to elasticsearch
+        """
+
+    def execute(method, path, body=None):
+        """
+        Perform method on path with optional body
         """
 
 
@@ -37,6 +47,3 @@ class ServerList(list):
     def markDead(self, server):
         self.remove(server)
         self.dead.insert(0, (time.time() + self.retryTime, server))
-
-
-
