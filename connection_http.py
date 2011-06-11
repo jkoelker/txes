@@ -13,7 +13,7 @@ from twisted.web import iweb
 from twisted.web import http
 from zope import interface
 
-from elasticmail.txes import connection
+from elasticmail.txes import connection, exceptions
 
 
 DEFAULT_SERVER = "127.0.0.1:9200"
@@ -46,7 +46,10 @@ class JSONReceiver(protocol.Protocol):
 
     def connectionLost(self, reason):
         if reason.check(client.ResponseDone, http.PotentialDataloss):
-            data = anyjson.deserialize(self.writter.getvalue())
+            try:
+                data = anyjson.deserialize(self.writter.getvalue())
+            except ValueError:
+                data = {"error": data}
             self.deferred.callback(data)
         else:
             self.deffered.errback(reason)
@@ -79,10 +82,16 @@ class HTTPConnection(object):
         pass
 
     def execute(self, method, path, body=None, params=None):
-        def parse_response(response):
+        def raiseExceptions(body, response):
+            status = int(response.status)
+            if status != 200:
+                exceptions.raiseExceptions(status, body)
+            return body
+
+        def parseResponse(response):
             d = defer.Deferred()
             reponse.deliverBody(JSONReceiver(d))
-            return d
+            return d.addCallback(raiseExceptions, response)
 
         agent = self.getAgent()
         server = self.servers.get()
@@ -98,5 +107,5 @@ class HTTPConnection(object):
             url = "http://" + url
 
         d = agent.request(method, url, bodyProducer=body)
-        d.addCallback(parse_response)
+        d.addCallback(parseResponse)
         return d
