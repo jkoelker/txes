@@ -94,6 +94,9 @@ class HTTPConnection(object):
         if body:
             body = JsonProducer(body)
 
+        if not url.startswith("http://"):
+            url = "http://" + url
+
         d = agent.request(method, url, bodyProducer=body)
         d.addCallback(parse_response)
         return d
