@@ -61,8 +61,8 @@ class HTTPConnection(object):
             self.client = client.Agent(reactor)
             return self.client
 
-    def connect(self, servers=None, timeout=None, discover=True,
-                retryTime=10, *args, **kwargs):
+    def connect(self, servers=None, timeout=None, retryTime=10,
+                *args, **kwargs):
         if not servers:
             servers = [DEFAULT_SERVER]
         elif isinstance(server, (str, unicode)):

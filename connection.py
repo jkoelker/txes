@@ -8,7 +8,7 @@ from elasticmail.txes import connection_http
 
 
 class IConnection(interface.Interface):
-    def connect(servers=None, timeout=None, discover=True, retryTime=10,
+    def connect(servers=None, timeout=None, retryTime=10,
                 *args, **kwargs):
         """
         connect to elasticsearch
@@ -52,12 +52,10 @@ class ServerList(list):
         self.dead.insert(0, (time.time() + self.retryTime, server))
 
 
-def connect(servers=None, timeout=None, discover=True, retryTime=10,
-            connection=None):
+def connect(servers=None, timeout=None, retryTime=10, connection=None):
     if not connection:
         connection = connection_http.HTTPConnection()
 
     verify.verifyObject(IConnection, connection)
-    connection.connect(servers=servers, timeout=timeout, discover=discover,
-                       retryTime=retryTime)
+    connection.connect(servers=servers, timeout=timeout, retryTime=retryTime)
     return connection
