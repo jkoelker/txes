@@ -1,5 +1,5 @@
 
-from twisted.internet import defer
+from twisted.internet import defer, reactor
 
 from txes import connection
 
@@ -12,7 +12,7 @@ class ElasticSearch(object):
     """
     def __init__(self, servers=None, timeout=None, bulkSize=400,
                  discover=True, retryTime=10, discoveryInterval=300,
-                 defaultIndexes=None):
+                 defaultIndexes=None, autorefresh=False):
         if isinstance(servers, basestring):
             servers = [servers]
         else:
@@ -28,6 +28,9 @@ class ElasticSearch(object):
         self.bulkSize = buldSize
         self.discover = discover
         self.retryTime = retryTime
+
+        self.autorefresh = autorefresh
+        self.refeshed = True
 
         self.connection = connection.connect(servers=servers,
                                              timeout=timeout,
@@ -68,7 +71,7 @@ class ElasticSearch(object):
         """
         if not indexes:
             indexes = self.defaultIndexes
-        path = self._makePath([','.join(indexes), "status"])
+        path = self._makePath([','.join(indexes), "_status"])
         d = self._sendRequest("GET", path)
         return d
 
@@ -150,7 +153,7 @@ class ElasticSearch(object):
         def factor(status):
             return status["indices"].keys()
 
-        d = self.status()
+        d = self.status(alias)
         return d.addCallback(factor)
 
     def changeAliases(self, *commands):
@@ -180,6 +183,96 @@ class ElasticSearch(object):
         if isinstance(indices, basestring):
             indices = [indices]
         return self.changeAliases(*[("remove", i, alias) for i in indices])
+
+    def setAlias(self, alias, indices):
+        """
+        Set and alias (possibly removing what it already points to)
+        """
+        def eb(failure):
+            failure.trap(exceptions.IndexMissingException)
+            return self.addAlias(alias, indices)
+
+        def factor(old_indices):
+            commands = [["remove", i, alias] for i in old_indices]
+            commands.extend([["add", i, alias] for i in indices])
+            if len(commands):
+                return self.changeAliases(*commands)
+
+        if isinstance(indices, basestring):
+            indices = [indices]
+
+        d = self.getAlias(alias)
+        d.addCallbacks(factor, eb)
+        return d
+
+    def closeIndex(self, index):
+        """
+        Close an index.
+        """
+        d = self._sendRequest("POST", "/%s/_close" % index)
+        return d
+
+    def openIndex(self, index):
+        """
+        Open an index.
+        """
+        d = self._sendRequest("POST", "/%s/_open" % index)
+        return d
+
+    def flush(self, indexes=None, refresh=None):
+        self.forceBulk()
+        if not indexes:
+            indexes = self.defaultIndexes
+        path = self._makePath([','.join(indexes), "_flush"])
+        params = None
+        if refresh:
+            params["refresh"] = True
+        d = self._sendRequest("POST", path, params=params)
+        return d
+
+    def refresh(self, indexes=None, timesleep=1):
+        def wait(results):
+            d = self.cluster_health(wait_for_status="green")
+            d.addCallback(lambda _: results)
+            self.refreshed = True
+            return d
+
+        def delay(results):
+            d = defer.Deferred()
+            reactor.callLater(timesleep, d.callback, results)
+            d.addCallback(wait)
+            return d
+
+        self.forceBulk()
+        if not indexes:
+            indexes = self.defaultIndexes
+        path = self._makePath([','.join(indexes), "_refresh"])
+        d = self._sendRequest("POST", path)
+        d.addCallback(delay)
+        return d
+
+    def optimize(self, indexes=None, waitForMerge=False,
+                 maxNumSegement=None, onlyExpungeDeletes=False,
+                 refresh=True, flush=True):
+        """
+        Optimize one or more indices.
+        """
+        def done(results):
+            self.refreshed = True
+            return results
+
+        if not indexes:
+            indexes = self.defaultIndexes
+        path = self._make_path([','.join(indexes), "_optimize"])
+        params = {"wait_for_merge": waitForMerge,
+                  "only_expunge_deletes": onlyExpungeDeletes,
+                  "refesh": refresh,
+                  "flush": flush}
+        if maxNumSegments:
+            params["max_num_segments"] = maxNumSegement
+        d = self._sendRequest("POST", path, params=params)
+        d.addCallback(done)
+        return d
 
     def clusterNodes(self, nodes=None):
         parts = ["_cluster", "nodes"]
