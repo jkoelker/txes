@@ -1,7 +1,7 @@
 
 from twisted.internet import defer
 
-from elasticmail.txes import connection
+from txes import connection
 
 
 class ElasticSearch(object):

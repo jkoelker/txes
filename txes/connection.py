@@ -4,7 +4,7 @@ import random
 from zope import interface
 from zope.interface import verify
 
-from elasticmail.txes import connection_http, exceptions
+from txes import connection_http, exceptions
 
 
 class IConnection(interface.Interface):

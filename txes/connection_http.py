@@ -13,7 +13,7 @@ from twisted.web import iweb
 from twisted.web import http
 from zope import interface
 
-from elasticmail.txes import connection, exceptions
+from txes import connection, exceptions
 
 
 DEFAULT_SERVER = "127.0.0.1:9200"
