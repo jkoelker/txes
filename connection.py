@@ -1,4 +1,4 @@
-mport time
+import time
 import random
 
 from zope import interface
