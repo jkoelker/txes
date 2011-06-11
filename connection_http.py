@@ -3,6 +3,7 @@ try:
     import cStringIO as StringIO
 except ImportError:
     import StringIO
+import urllib
 
 import anyjson
 
@@ -54,6 +55,10 @@ class JSONReceiver(protocol.Protocol):
 class HTTPConnection(object):
     interface.implements(connection.IConnection)
 
+    def addServer(self, server):
+        if server not in self.servers:
+            self.server.append(server)
+
     def getAgent(self):
         try:
             return self.client
@@ -73,7 +78,7 @@ class HTTPConnection(object):
     def close(self):
         pass
 
-    def execute(self, method, path, body):
+    def execute(self, method, path, body=None, params=None):
         def parse_response(response):
             d = defer.Deferred()
             reponse.deliverBody(JSONReceiver(d))
@@ -81,8 +86,14 @@ class HTTPConnection(object):
 
         agent = self.getAgent()
         server = self.servers.get()
-        url = server + '/' + path
+        url = server + path
 
-        d = agent.request(method, url, bodyProducer=JsonProducer(body))
+        if params:
+            url = url + '?' + urllib.urlencode(params)
+
+        if body:
+            body = JsonProducer(body)
+
+        d = agent.request(method, url, bodyProducer=body)
         d.addCallback(parse_response)
         return d
