@@ -57,7 +57,7 @@ class HTTPConnection(object):
 
     def addServer(self, server):
         if server not in self.servers:
-            self.server.append(server)
+            self.servers.append(server)
 
     def getAgent(self):
         try:
