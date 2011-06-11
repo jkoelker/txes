@@ -4,7 +4,7 @@ import random
 from zope import interface
 from zope.interface import verify
 
-from elasticmail.txes import connection_http
+from elasticmail.txes import connection_http, exceptions
 
 
 class IConnection(interface.Interface):
@@ -30,10 +30,6 @@ class IConnection(interface.Interface):
         """
 
 
-class NoServerAvailable(Exception):
-    pass
-
-
 class ServerList(list):
     def __init__(self, servers, retryTime=10):
         list.__init__(self, servers)
@@ -48,7 +44,7 @@ class ServerList(list):
             else:
                 self.append(server)
         if not self:
-            raise NoServerAvailable()
+            raise exceptions.NoServerAvailable()
 
         return random.choice(self)
 
