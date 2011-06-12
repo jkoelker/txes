@@ -37,7 +37,7 @@ class ElasticSearch(object):
 
         self.connection = connection.connect(servers=servers,
                                              timeout=timeout,
-                                             retryTime=retryTime) 
+                                             retryTime=retryTime)
         if discover:
             self._performDiscovery()
         else:
@@ -159,7 +159,7 @@ class ElasticSearch(object):
                 numDocs = info["docs"]["num_docs"]
                 if not includeAliases:
                     continue
-                for alias in info["aliases"]
+                for alias in info["aliases"]:
                     if alias not in result:
                         result[alias] = dict()
 
@@ -194,8 +194,8 @@ class ElasticSearch(object):
 
         You may specify multiple commands as additional arguments
         """
-        actions = [{c: {"index": i, "alias": a}} for c, i, a in commands]}
-        d = self._sendRequest("POST", "_aliases", { "actions": actions})
+        actions = [{c: {"index": i, "alias": a}} for c, i, a in commands]
+        d = self._sendRequest("POST", "_aliases", {"actions": actions})
         return d
 
     def addAlias(self, alias, indices):
@@ -265,7 +265,6 @@ class ElasticSearch(object):
             return d
         else:
             return flushIt()
-
 
     def refresh(self, indexes=None, timesleep=1):
         def wait(results):
@@ -399,7 +398,7 @@ class ElasticSearch(object):
             if waitForStatus not in ("green", "yellow", "red"):
                 raise ValueError("Invalid waitForStatus: %s" % waitForStatus)
             mapping["wait_for_status"] = waitForStatus
-        
+
         if waitForRelocatingShard:
             mapping["wait_for_relocating_shards"] = waitForRelocatingShards
 
@@ -528,7 +527,7 @@ class ElasticSearch(object):
         self.bulkData = []
         return d
 
-    def delete(self, index, docType, id, bulk = False):
+    def delete(self, index, docType, id, bulk=False):
         """
         Delete a typed JSON document from a specific index based on its id.
         """
@@ -538,7 +537,7 @@ class ElasticSearch(object):
                               "_id": id}}
             self.bulkData.append(anyjson.serialize(cmd))
             return self.flushBulk()
-        
+
         path = self._makePath([index, docType, id])
         d = self._sendRequest("DELETE", path)
         return d
@@ -632,7 +631,7 @@ class ElasticSearch(object):
         if not docTypes:
             docTypes = []
         elif isinstance(docTypes, basestring):
-            docTypes= [docTypes]
+            docTypes = [docTypes]
         path = self._makePath([','.join(indexes), ','.join(docTypes),
                                "_reindexbyquery"])
         d = self._sendRequest("POST", path, body=query, params=params)
@@ -670,7 +669,7 @@ class ElasticSearch(object):
         """
         path = self._makePath([index, docType, id, "_mlt"])
         params["fields"] = ','.join(fields)
-        d =self._sendRequest("GET", path, params=params)
+        d = self._sendRequest("GET", path, params=params)
         return d
 
     def updateSettings(self, index, settings):
