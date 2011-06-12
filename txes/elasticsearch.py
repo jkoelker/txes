@@ -65,12 +65,17 @@ class ElasticSearch(object):
                                 method, str(path), body, params)
         return d
 
+    def _validateIndexes(self, indexes=None):
+        indexes = indexes or self.defaultIndexes
+        if isinstance(indexes, basestring):
+            return [indexes]
+        return indexes
+
     def status(self, indexes=None):
         """
         Retrieve the status of one or more indicies
         """
-        if not indexes:
-            indexes = self.defaultIndexes
+        indexes = self._validateIndexes(indexes)
         path = self._makePath([','.join(indexes), "_status"])
         d = self._sendRequest("GET", path)
         return d
@@ -221,8 +226,7 @@ class ElasticSearch(object):
 
     def flush(self, indexes=None, refresh=None):
         self.forceBulk()
-        if not indexes:
-            indexes = self.defaultIndexes
+        indexes = self._validateIndexes(indexes)
         path = self._makePath([','.join(indexes), "_flush"])
         params = None
         if refresh:
@@ -244,8 +248,7 @@ class ElasticSearch(object):
             return d
 
         self.forceBulk()
-        if not indexes:
-            indexes = self.defaultIndexes
+        indexes = self._validateIndexes(indexes)
         path = self._makePath([','.join(indexes), "_refresh"])
         d = self._sendRequest("POST", path)
         d.addCallback(delay)
@@ -261,8 +264,7 @@ class ElasticSearch(object):
             self.refreshed = True
             return results
 
-        if not indexes:
-            indexes = self.defaultIndexes
+        indexes = self._validateIndexes(indexes)
         path = self._make_path([','.join(indexes), "_optimize"])
         params = {"wait_for_merge": waitForMerge,
                   "only_expunge_deletes": onlyExpungeDeletes,
@@ -272,6 +274,55 @@ class ElasticSearch(object):
             params["max_num_segments"] = maxNumSegement
         d = self._sendRequest("POST", path, params=params)
         d.addCallback(done)
+        return d
+
+    def analyze(self, text, index=None, analyzer=None):
+        """
+        Perfoms the analysis process on a text and returns the tokens
+        breakdown of the text
+        """
+        if analyzer:
+            analyzer = {"analyzer": analyzer}
+
+        body = {"text": text}
+        path = self._makePaht([index, "_analyze"])
+        d = self._sendRequest("POST", path, body=body, params=analyzer)
+        return d
+
+    def gatewaySnapshot(self, indexes=None):
+        """
+        Gateway shapshot one or more indices
+        """
+        indexes = self._validateIndexes(indexes)
+        path = self.makePath([','.join(indexes), "_gateway", "snapshot"])
+        d = self.sendRequest("POST", path)
+        return d
+
+    def putMapping(self, docType, mapping, indexes=None):
+        """
+        Register specific mapping definition for a specific type against
+        one or more indices.
+        """
+        indexes = self._validateIndexes(indexes)
+        path = self._makePath([','.join(indexes), docType, "_mapping"])
+        if docType not in mapping:
+            mapping = {docType: mapping}
+        self.refreshed = False
+        d = self._sendRequest("PUT", path, body=mapping)
+        return d
+
+    def getMapping(self, docType=None, indexes=None):
+        """
+        Get the mapping definition
+        """
+        indexes = self._validateIndexes(indexes)
+        path = [','.join(indexes)]
+
+        if docType:
+            path.append(docType)
+
+        path.append("_mapping")
+        d = self._sendRequest("GET", path)
         return d
 
     def clusterNodes(self, nodes=None):
