@@ -1,3 +1,4 @@
+import anyjson
 
 from twisted.internet import defer, reactor
 
@@ -33,6 +34,7 @@ class ElasticSearch(object):
         self.refeshed = True
 
         self.info = {}
+        self.bulkData = []
 
         self.connection = connection.connect(servers=servers,
                                              timeout=timeout,
@@ -227,14 +229,22 @@ class ElasticSearch(object):
         return d
 
     def flush(self, indexes=None, refresh=None):
-        self.forceBulk()
-        indexes = self._validateIndexes(indexes)
-        path = self._makePath([','.join(indexes), "_flush"])
-        params = None
-        if refresh:
-            params["refresh"] = True
-        d = self._sendRequest("POST", path, params=params)
-        return d
+        def flushIt(_=None):
+            indexes = self._validateIndexes(indexes)
+            path = self._makePath([','.join(indexes), "_flush"])
+            params = None
+            if refresh:
+                params["refresh"] = True
+            d = self._sendRequest("POST", path, params=params)
+            return d
+
+        if self.bulkData:
+            d = self.forceBulk()
+            d.addCallback(flushIt)
+            return d
+        else:
+            return flushIt()
+
 
     def refresh(self, indexes=None, timesleep=1):
         def wait(results):
@@ -249,12 +259,19 @@ class ElasticSearch(object):
             d.addCallback(wait)
             return d
 
-        self.forceBulk()
-        indexes = self._validateIndexes(indexes)
-        path = self._makePath([','.join(indexes), "_refresh"])
-        d = self._sendRequest("POST", path)
-        d.addCallback(delay)
-        return d
+        def refreshIt(_=None):
+            indexes = self._validateIndexes(indexes)
+            path = self._makePath([','.join(indexes), "_refresh"])
+            d = self._sendRequest("POST", path)
+            d.addCallback(delay)
+            return d
+
+        if self.bulkData:
+            d = self.forceBulk()
+            d.addCallback(refreshIt)
+            return d
+        else:
+            return refreshIt()
 
     def optimize(self, indexes=None, waitForMerge=False,
                  maxNumSegement=None, onlyExpungeDeletes=False,
@@ -410,6 +427,124 @@ class ElasticSearch(object):
             parts.append(','.join(nodes))
         path = self._makePath(parts)
         d = self._sendRequest("GET", path)
+        return d
+
+    def clusterStats(self, nodes=None):
+        """
+        The cluster nodes info API
+        """
+        parts = ["_cluster", "nodes"]
+        if nodes:
+            parts.append(','.join(nodes))
+        parts.append("stats")
+        path = self._makePath(parts)
+        d = self._sendRequest("GET", path)
+        return d
+
+    def index(self, doc, index, docType, id=None, parent=None,
+              forceInsert=None, bulk=False, version=None,
+              querystringArgs=None):
+        """
+        Index a dict into a specific index and make it searchable
+        """
+        self.refreshed = False
+
+        if bulk:
+            optype = "index"
+            if forceInsert:
+                optype = "create"
+            cmd = {optype: {"_index": index, "_type": docType}}
+            if parent:
+                cmd[optype]["_parent"] = parent
+            if version:
+                cmd[optype]["_version"] = version
+            if id:
+                cmd[optype]["_id"] = id
+            data = '\n'.join([anyjson.serialize(cmd),
+                              anyjson.serialize(doc)])
+            self.bulkData.append(data)
+            return self.flushBulk()
+
+        if not querystringArgs:
+            querystringArgs = {}
+
+        if forceInsert:
+            querystringArgs["opType"] = "create"
+
+        if parent:
+            querystringArgs["parent"] = parent
+
+        if version:
+            querystringArgs["version"] = version
+
+        if id:
+            requestMethod = "PUT"
+        else:
+            requestMethod = "POST"
+
+        path = self._makePath([index, docType, id])
+        d = self._sendRequest(requestMethod, path, body=doc,
+                              params=querystringArgs)
+        return d
+
+    def flushBulk(self, forces=False):
+        """
+        Wait to process all pending operations
+        """
+        if not forced and len(self.bulkData) < self.bulkSize:
+            return defer.succeed(None)
+        return self.forceBulk()
+
+    def forceBulk(self):
+        """
+        Force executing of all bulk data
+        """
+        if not len(self.bulkData):
+            return defer.succeed(None)
+
+        data = '\n'.join(self.buldData)
+        d = self._sendRequest("POST", "/_bulk", body=data)
+        self.bulkData = []
+        return d
+
+    def delete(self, index, docType, id, bulk = False):
+        """
+        Delete a typed JSON document from a specific index based on its id.
+        """
+        if bulk:
+            cmd = {"delete": {"_index": index,
+                              "_type": docType,
+                              "_id": id}}
+            self.bulkData.append(anyjson.serialize(cmd))
+            return self.flushBulk()
+        
+        path = self._makePath([index, docType, id])
+        d = self._sendRequest("DELETE", path)
+        return d
+
+    def deleteByQuery(self, indexes, docTypes, query, **requestParams):
+        """
+        Delete documents from one or more indexes and one or more types
+        based on query.
+        """
+        indexes = self._validateIndexes(indexes)
+        if not docTypes:
+            docTypes = []
+        elif isinstance(docTypes, basestring):
+            docTypes = [docTypes]
+
+        path = self._makePath([','.join(indexes), ','.join(docTypes),
+                               "_query"])
+        d = self._sendRequest("DELETE", path, body=body,
+                              params=requestParams)
+        return d
+
+    def deleteMapping(self, index, docType):
+        """
+        Delete a document type from a specific index.
+        """
+        path = self._makePath([index, docType])
+        d = self._sendRequest("DELETE", path)
         return d
 
     @property
