@@ -19,11 +19,11 @@ from txes import connection, exceptions
 DEFAULT_SERVER = "127.0.0.1:9200"
 
 
-class JSONProducer(object):
+class StringProducer(object):
     interface.implements(iweb.IBodyProducer)
 
     def __init__(self, body):
-        self.body = anyjson.serialize(body)
+        self.body = body
         self.length = len(self.body)
 
     def startProducing(self, consumer):
@@ -34,6 +34,11 @@ class JSONProducer(object):
 
     def stopProducing(self):
         pass
+
+
+class JSONProducer(StringProducer):
+    def __init__(self, body):
+        StringProducer.__init__(self, anyjson.serialize(body))
 
 
 class JSONReceiver(protocol.Protocol):
@@ -100,7 +105,9 @@ class HTTPConnection(object):
         if params:
             url = url + '?' + urllib.urlencode(params)
 
-        if body:
+        if isinstance(body, basestring):
+            body = StringProducer(body)
+        else:
             body = JsonProducer(body)
 
         if not url.startswith("http://"):
