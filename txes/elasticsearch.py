@@ -32,6 +32,8 @@ class ElasticSearch(object):
         self.autorefresh = autorefresh
         self.refeshed = True
 
+        self.info = {}
+
         self.connection = connection.connect(servers=servers,
                                              timeout=timeout,
                                              retryTime=retryTime) 
@@ -323,6 +325,83 @@ class ElasticSearch(object):
 
         path.append("_mapping")
         d = self._sendRequest("GET", path)
+        return d
+
+    def collectInfo(self):
+        """
+        Collect info about the connection and fill the info dicionary
+        """
+        def factor(result):
+            self.info = {}
+            self.info['server'] = {}
+            self.info['server']['name'] = res['name']
+            self.info['server']['version'] = res['version']
+            self.info['allinfo'] = res
+            self.info['status'] = self.status(["_all"])
+            return self.info
+
+        d = self._sendRequest("GET", '/')
+        d.addCallback(factor)
+        return d
+
+    def clusterHealth(self, indexes=None, level="cluster",
+                      waitForStatus=None, waitForRelocatingShards=None,
+                      waitForNodes=None, timeout=30):
+        """
+        Check the current cluster health
+        """
+
+        path = self._mapPath(["_cluster", "health"])
+        if level not in ("cluster", "indices", "shards"):
+            raise ValueError("Invalid level: %s" % level)
+
+        mapping = {"level": level}
+
+        if waitForStatus:
+            if waitForStatus not in ("green", "yellow", "red"):
+                raise ValueError("Invalid waitForStatus: %s" % waitForStatus)
+            mapping["wait_for_status"] = waitForStatus
+        
+        if waitForRelocatingShard:
+            mapping["wait_for_relocating_shards"] = waitForRelocatingShards
+
+        if waitForNodes:
+            mapping["wait_for_nodes"] = waitForNodes
+
+        if waitForStatus or waitForRelocatingShard or waitForNode:
+            mapping["timeout"] = timeout
+
+        d = self._sendRequest("GET", path, mapping)
+        return d
+
+    def clusterState(self, filterNodes=None, filterRoutingTable=None,
+                     filterMetadata=None, filterBlocks=None,
+                     filterIndices=None):
+        """
+        Retrieve the cluster state
+        """
+        path = self._makePath(["_cluster", "state"])
+        params = {}
+
+        if filterNodes:
+            params['filter_nodes'] = filterNodes
+
+        if filterRoutingTable:
+            params['filter_routing_table'] = filterRoutingTable
+
+        if filterMetadata:
+            params['filter_metadata'] = filterMetadata
+
+        if filterBlocks:
+            params['filter_blocks'] = filterBlocks
+
+        if filterIndicies:
+            if isinstance(filterIndices, basestring):
+                params['filter_indices'] = filterIndices
+            else:
+                params['filter_indices'] = ','.join(filterIndices)
+
+        d = self._sendRequest("GET", path, params=params)
         return d
 
     def clusterNodes(self, nodes=None):
