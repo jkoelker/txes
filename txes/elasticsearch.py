@@ -27,9 +27,8 @@ class ElasticSearch(object):
         self.defaultIndexes = defaultIndexes
         self.timeout = timeout
         self.bulkSize = buldSize
-        self.discover = discover
         self.retryTime = retryTime
-
+        self.discoveryInterval = discoveryInterval
         self.autorefresh = autorefresh
         self.refeshed = True
 
@@ -39,7 +38,7 @@ class ElasticSearch(object):
         self.connection = connection.connect(servers=servers,
                                              timeout=timeout,
                                              retryTime=retryTime) 
-        if self.discover:
+        if discover:
             self._performDiscovery()
         else:
             def cb(data):
@@ -60,6 +59,8 @@ class ElasticSearch(object):
 
                 server = httpAddr.strip("inet[/]")
                 self.connection.addServer(server)
+            reactor.callLater(self.discoveryInterval,
+                              self._performDiscovery)
 
         d = self.clusterNodes()
         d.addCallBack(cb)
