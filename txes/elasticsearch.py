@@ -64,6 +64,26 @@ class ElasticSearch(object):
         d = self.clusterNodes()
         d.addCallBack(cb)
 
+    def _sendQuery(self, queryType, query, indexes=None, docTypes=None,
+                   **params):
+        def sendIt(_=None):
+            indexes = self._validateIndexes(indexes)
+            if docTypes is None:
+                docTypes = []
+            elif isinstance(docTypes, basestring):
+                docTypes = [docTypes]
+            path = self._makePath([','.join(indexes), ','.join(docTypes),
+                                   queryType])
+            d = self._sendRequest("GET", path, body=query, params=params)
+            return d
+
+        if self.autorefresh and not self.refreshed:
+            d = self.refresh(indexes)
+            d.addCallback(sendIt)
+            return d
+        else:
+            return sendIt()
+
     def _sendRequest(self, method, path, body=None, params=None):
         d = defer.maybeDeferred(self.connection.execute,
                                 method, str(path), body, params)
@@ -522,7 +542,7 @@ class ElasticSearch(object):
         d = self._sendRequest("DELETE", path)
         return d
 
-    def deleteByQuery(self, indexes, docTypes, query, **requestParams):
+    def deleteByQuery(self, indexes, docTypes, query, **params):
         """
         Delete documents from one or more indexes and one or more types
         based on query.
@@ -535,8 +555,7 @@ class ElasticSearch(object):
 
         path = self._makePath([','.join(indexes), ','.join(docTypes),
                                "_query"])
-        d = self._sendRequest("DELETE", path, body=body,
-                              params=requestParams)
+        d = self._sendRequest("DELETE", path, body=body, params=params)
         return d
 
     def deleteMapping(self, index, docType):
@@ -545,6 +564,120 @@ class ElasticSearch(object):
         """
         path = self._makePath([index, docType])
         d = self._sendRequest("DELETE", path)
+        return d
+
+    def get(self, index, docType, id, fields=None, routing=None, **params):
+        """
+        Get a typed document form an index based on its id.
+        """
+        path = self._makePath([index, docType, id])
+        if fields:
+            params["fields"] = ','.join(fields)
+        if routing:
+            params["routings"] = routing
+        d = self._sendRequest("GET", path, params=params)
+        return d
+
+    def search(self, query, indexes=None, docType=None, **params):
+        """
+        Execute a search agains one or more indices
+        """
+        indexes = self._validateIndexes(indexes)
+        d = self._sendQuery("_search", query, indexes, docTypes, **params)
+        return d
+
+    def scan(self, query, indexes=None, docTypes=None, scrollTimeout="10m",
+             **params):
+        """
+        Return an iterator which will scan against one or more indices.
+        Each call to next() will yeild a deferred that will contain the
+        next dataset
+        """
+
+        class Scroller(object):
+            def __init__(self, results):
+                self.results = results
+
+            def __iter__(self):
+                return self
+
+            def _setResults(self, results):
+                if not len(results["hits"]["hits"]):
+                    raise StopIteration
+                self.results = results
+                return results
+
+            def next(self):
+                scrollId = self.results["_scroll_id"]
+                d = self._send_request("GET", "_search/scroll", scrollId,
+                                       {"scroll": scrollTimeout})
+                d.addCallback(self._setResults)
+                return
+
+        def scroll(results):
+            return Scroller(results)
+
+        d = self.search(query=query, indexes=indexes, docTypes=docTypes,
+                        searchTypes="scan", scroll=scrollTimeout, **params)
+        d.addCallback(scroll)
+        return d
+
+    def reindex(self, query, indexes=None, docTypes=None, **params):
+        """
+        Execute a search query against one or more indices and reindex the
+        hits.
+        """
+        indexes = self._validateIndexes(indexes)
+        if not docTypes:
+            docTypes = []
+        elif isinstance(docTypes, basestring):
+            docTypes= [docTypes]
+        path = self._makePath([','.join(indexes), ','.join(docTypes),
+                               "_reindexbyquery"])
+        d = self._sendRequest("POST", path, body=query, params=params)
+        return d
+
+    def count(self, query, indexes=None, docTypes=None, **params):
+        """
+        Execute a query against one or more indices and get the hit count
+        """
+        indexes = self._balidateIndexes(indexes)
+        d = self._sendQuery("_count", query, indexes, docTypes, **params)
+
+    def createRiver(self, river, riverName=None):
+        """
+        Create a river
+        """
+        if not riverName:
+            riverName = river["index"]["index"]
+        d = self._sendRequest("PUT", "/_river/%s/_meta" % riverName,
+                              body=river)
+        return d
+
+    def deleteRiver(seld, river, riverName=None):
+        """
+        Delete a river
+        """
+        if not riverName:
+            riverName = river["index"]["index"]
+        d = self._sendRequest("DELETE", "/_river/%s/" % riverName)
+        return d
+
+    def moreLikeThis(seld, index, docType, id, fields, **params):
+        """
+        Execute a "more like this" search query against on eor more fields.
+        """
+        path = self._makePath([index, docType, id, "_mlt"])
+        params["fields"] = ','.join(fields)
+        d =self._sendRequest("GET", path, params=params)
+        return d
+
+    def updateSettings(self, index, settings):
+        """
+        Update settings of an index.
+        """
+        path = self._makePath([index, "_settings"])
+        d = self._sendRequest("PUT", path, body=settings)
         return d
 
     @property
