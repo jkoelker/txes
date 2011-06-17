@@ -18,7 +18,8 @@ setup(name='txes',
       include_package_data=True,
       zip_safe=False,
       install_requires=[
-          # -*- Extra requirements: -*-
+          "twisted",
+          "anyjson"
       ],
       entry_points="""
       # -*- Entry points: -*-
