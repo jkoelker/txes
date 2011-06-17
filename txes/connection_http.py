@@ -113,6 +113,6 @@ class HTTPConnection(object):
         if not url.startswith("http://"):
             url = "http://" + url
 
-        d = agent.request(method, url, bodyProducer=body)
+        d = agent.request(method, str(url), bodyProducer=body)
         d.addCallback(parseResponse)
         return d
