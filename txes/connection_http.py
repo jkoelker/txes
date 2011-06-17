@@ -13,7 +13,7 @@ from twisted.web import iweb
 from twisted.web import http
 from zope import interface
 
-from txes import connection, exceptions
+from txes import exceptions, interfaces, utils
 
 
 DEFAULT_SERVER = "127.0.0.1:9200"
@@ -61,7 +61,7 @@ class JSONReceiver(protocol.Protocol):
 
 
 class HTTPConnection(object):
-    interface.implements(connection.IConnection)
+    interface.implements(interfaces.IConnection)
 
     def addServer(self, server):
         if server not in self.servers:
@@ -80,7 +80,7 @@ class HTTPConnection(object):
             servers = [DEFAULT_SERVER]
         elif isinstance(server, (str, unicode)):
             servers = [servers]
-        self.servers = connection.ServerList(servers, retryTime=retryTime)
+        self.servers = utils.ServerList(servers, retryTime=retryTime)
         self.agents = {}
 
     def close(self):
