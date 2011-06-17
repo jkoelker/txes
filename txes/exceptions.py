@@ -90,7 +90,7 @@ def raiseExceptions(status, result):
     if status < 400:
         return
 
-    if status == 404 and isinstance(result, dict) and result.get("ok"):
+    if status == 404 and isinstance(result, dict):
         raise NotFoundException("Item not found", status, result)
 
     if not isinstance(result, dict) or "error" not in result:
@@ -101,7 +101,7 @@ def raiseExceptions(status, result):
     bits = error.split('[', 1)
     if len(bits) == 2:
         excClass = globals().get(bits[0])
-        if exeClass:
+        if excClass:
             msg = bits[1].rstrip(']')
             raise excClass(msg, status, result)
 

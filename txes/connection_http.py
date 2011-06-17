@@ -54,7 +54,7 @@ class JSONReceiver(protocol.Protocol):
             try:
                 data = anyjson.deserialize(self.writter.getvalue())
             except ValueError:
-                data = {"error": data}
+                data = {"error": reason}
             self.deferred.callback(data)
         else:
             self.deffered.errback(reason)
@@ -100,6 +100,8 @@ class HTTPConnection(object):
 
         agent = self.getAgent()
         server = self.servers.get()
+        if not path.startswith('/'):
+            path = '/' + path
         url = server + path
 
         if params:

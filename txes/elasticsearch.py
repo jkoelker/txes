@@ -2,7 +2,7 @@ import anyjson
 
 from twisted.internet import defer, reactor
 
-from txes import connection
+from txes import connection, exceptions
 
 
 class ElasticSearch(object):
@@ -98,7 +98,7 @@ class ElasticSearch(object):
 
     def status(self, indexes=None):
         """
-        Retrieve the status of one or more indicies
+        Retrieve the status of one or more indices
         """
         indexes = self._validateIndexes(indexes)
         path = self._makePath([','.join(indexes), "_status"])
@@ -115,7 +115,7 @@ class ElasticSearch(object):
     def createIndexIfMissing(self, index, settings=None):
         def eb(failure):
             failure.trap(exceptions.IndexAlreadyExistsException)
-            return failure.value.result
+            return {u'acknowledged': True, u'ok': True}
 
         d = self.createIndex(index, settings)
         return d.addErrback(eb)
@@ -131,13 +131,12 @@ class ElasticSearch(object):
         def eb(failure):
             failure.trap(exceptions.IndexMissingException,
                          exceptions.NotFoundException)
-            if failure.check(exceptions.NotFoundException):
-                return failure.value.result
+            return {u'acknowledged': True, u'ok': True}
 
         d = self.deleteIndex(index)
         return d.addErrback(eb)
 
-    def getIndicies(self, includeAliases=False):
+    def getIndices(self, includeAliases=False):
         """
         Get a dict holding an entry for each index which exits.
 
@@ -153,10 +152,11 @@ class ElasticSearch(object):
         """
         def factor(status):
             result = {}
-            indicies = status["indices"]
+            indices = status["indices"]
             for index in sorted(indices):
                 info = indices[index]
                 numDocs = info["docs"]["num_docs"]
+                result[index] = {"num_docs": numDocs}
                 if not includeAliases:
                     continue
                 for alias in info["aliases"]:
@@ -176,7 +176,7 @@ class ElasticSearch(object):
 
     def getAlias(self, alias):
         """
-        Return a list of indicies pointed to by a given alias.
+        Return a list of indices pointed to by a given alias.
 
         Raises IndexMissionException if the alias does not exist.
         """
@@ -251,8 +251,8 @@ class ElasticSearch(object):
 
     def flush(self, indexes=None, refresh=None):
         def flushIt(_=None):
-            indexes = self._validateIndexes(indexes)
-            path = self._makePath([','.join(indexes), "_flush"])
+            indices= self._validateIndexes(indexes)
+            path = self._makePath([','.join(indices), "_flush"])
             params = None
             if refresh:
                 params["refresh"] = True
@@ -268,7 +268,7 @@ class ElasticSearch(object):
 
     def refresh(self, indexes=None, timesleep=1):
         def wait(results):
-            d = self.cluster_health(wait_for_status="green")
+            d = self.clusterHealth(waitForStatus="green")
             d.addCallback(lambda _: results)
             self.refreshed = True
             return d
@@ -280,8 +280,8 @@ class ElasticSearch(object):
             return d
 
         def refreshIt(_=None):
-            indexes = self._validateIndexes(indexes)
-            path = self._makePath([','.join(indexes), "_refresh"])
+            indices= self._validateIndexes(indexes)
+            path = self._makePath([','.join(indices), "_refresh"])
             d = self._sendRequest("POST", path)
             d.addCallback(delay)
             return d
@@ -294,7 +294,7 @@ class ElasticSearch(object):
             return refreshIt()
 
     def optimize(self, indexes=None, waitForMerge=False,
-                 maxNumSegement=None, onlyExpungeDeletes=False,
+                 maxNumSegments=None, onlyExpungeDeletes=False,
                  refresh=True, flush=True):
         """
         Optimize one or more indices.
@@ -304,7 +304,7 @@ class ElasticSearch(object):
             return results
 
         indexes = self._validateIndexes(indexes)
-        path = self._make_path([','.join(indexes), "_optimize"])
+        path = self._makePath([','.join(indexes), "_optimize"])
         params = {"wait_for_merge": waitForMerge,
                   "only_expunge_deletes": onlyExpungeDeletes,
                   "refesh": refresh,
@@ -315,7 +315,7 @@ class ElasticSearch(object):
         d.addCallback(done)
         return d
 
-    def analyze(self, text, index=None, analyzer=None):
+    def analyze(self, text, index, analyzer=None):
         """
         Perfoms the analysis process on a text and returns the tokens
         breakdown of the text
@@ -324,7 +324,7 @@ class ElasticSearch(object):
             analyzer = {"analyzer": analyzer}
 
         body = {"text": text}
-        path = self._makePaht([index, "_analyze"])
+        path = self._makePath([index, "_analyze"])
         d = self._sendRequest("POST", path, body=body, params=analyzer)
         return d
 
@@ -333,8 +333,8 @@ class ElasticSearch(object):
         Gateway shapshot one or more indices
         """
         indexes = self._validateIndexes(indexes)
-        path = self.makePath([','.join(indexes), "_gateway", "snapshot"])
-        d = self.sendRequest("POST", path)
+        path = self._makePath([','.join(indexes), "_gateway", "snapshot"])
+        d = self._sendRequest("POST", path)
         return d
 
     def putMapping(self, docType, mapping, indexes=None):
@@ -371,9 +371,9 @@ class ElasticSearch(object):
         def factor(result):
             self.info = {}
             self.info['server'] = {}
-            self.info['server']['name'] = res['name']
-            self.info['server']['version'] = res['version']
-            self.info['allinfo'] = res
+            self.info['server']['name'] = result['name']
+            self.info['server']['version'] = result['version']
+            self.info['allinfo'] = ressult
             self.info['status'] = self.status(["_all"])
             return self.info
 
@@ -388,7 +388,7 @@ class ElasticSearch(object):
         Check the current cluster health
         """
 
-        path = self._mapPath(["_cluster", "health"])
+        path = self._makePath(["_cluster", "health"])
         if level not in ("cluster", "indices", "shards"):
             raise ValueError("Invalid level: %s" % level)
 
@@ -399,13 +399,13 @@ class ElasticSearch(object):
                 raise ValueError("Invalid waitForStatus: %s" % waitForStatus)
             mapping["wait_for_status"] = waitForStatus
 
-        if waitForRelocatingShard:
+        if waitForRelocatingShards:
             mapping["wait_for_relocating_shards"] = waitForRelocatingShards
 
         if waitForNodes:
             mapping["wait_for_nodes"] = waitForNodes
 
-        if waitForStatus or waitForRelocatingShard or waitForNode:
+        if waitForStatus or waitForRelocatingShards or waitForNodes:
             mapping["timeout"] = timeout
 
         d = self._sendRequest("GET", path, mapping)
@@ -432,7 +432,7 @@ class ElasticSearch(object):
         if filterBlocks:
             params['filter_blocks'] = filterBlocks
 
-        if filterIndicies:
+        if filterIndices:
             if isinstance(filterIndices, basestring):
                 params['filter_indices'] = filterIndices
             else:
@@ -507,7 +507,7 @@ class ElasticSearch(object):
                               params=querystringArgs)
         return d
 
-    def flushBulk(self, forces=False):
+    def flushBulk(self, forced=False):
         """
         Wait to process all pending operations
         """
