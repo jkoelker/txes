@@ -26,7 +26,7 @@ class ElasticSearch(object):
 
         self.defaultIndexes = defaultIndexes
         self.timeout = timeout
-        self.bulkSize = buldSize
+        self.bulkSize = bulkSize
         self.retryTime = retryTime
         self.discoveryInterval = discoveryInterval
         self.autorefresh = autorefresh
@@ -63,7 +63,7 @@ class ElasticSearch(object):
                               self._performDiscovery)
 
         d = self.clusterNodes()
-        d.addCallBack(cb)
+        d.addCallback(cb)
 
     def _sendQuery(self, queryType, query, indexes=None, docTypes=None,
                    **params):

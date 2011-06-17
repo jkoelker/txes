@@ -44,13 +44,13 @@ class JSONProducer(StringProducer):
 class JSONReceiver(protocol.Protocol):
     def __init__(self, deferred):
         self.deferred = deferred
-        self.writter = codecs.getwritter("utf_8")(StringIO.StringIO())
+        self.writter = codecs.getwriter("utf_8")(StringIO.StringIO())
 
     def dataReceived(self, bytes):
         self.writter.write(bytes)
 
     def connectionLost(self, reason):
-        if reason.check(client.ResponseDone, http.PotentialDataloss):
+        if reason.check(client.ResponseDone, http.PotentialDataLoss):
             try:
                 data = anyjson.deserialize(self.writter.getvalue())
             except ValueError:
@@ -78,7 +78,7 @@ class HTTPConnection(object):
                 *args, **kwargs):
         if not servers:
             servers = [DEFAULT_SERVER]
-        elif isinstance(server, (str, unicode)):
+        elif isinstance(servers, (str, unicode)):
             servers = [servers]
         self.servers = utils.ServerList(servers, retryTime=retryTime)
         self.agents = {}
@@ -88,14 +88,14 @@ class HTTPConnection(object):
 
     def execute(self, method, path, body=None, params=None):
         def raiseExceptions(body, response):
-            status = int(response.status)
+            status = int(response.code)
             if status != 200:
                 exceptions.raiseExceptions(status, body)
             return body
 
         def parseResponse(response):
             d = defer.Deferred()
-            reponse.deliverBody(JSONReceiver(d))
+            response.deliverBody(JSONReceiver(d))
             return d.addCallback(raiseExceptions, response)
 
         agent = self.getAgent()
@@ -108,7 +108,7 @@ class HTTPConnection(object):
         if isinstance(body, basestring):
             body = StringProducer(body)
         else:
-            body = JsonProducer(body)
+            body = JSONProducer(body)
 
         if not url.startswith("http://"):
             url = "http://" + url
