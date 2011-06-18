@@ -68,12 +68,12 @@ class ElasticSearch(object):
     def _sendQuery(self, queryType, query, indexes=None, docTypes=None,
                    **params):
         def sendIt(_=None):
-            indexes = self._validateIndexes(indexes)
+            indices = self._validateIndexes(indexes)
             if docTypes is None:
                 docTypes = []
             elif isinstance(docTypes, basestring):
                 docTypes = [docTypes]
-            path = self._makePath([','.join(indexes), ','.join(docTypes),
+            path = self._makePath([','.join(indices), ','.join(docTypes),
                                    queryType])
             d = self._sendRequest("GET", path, body=query, params=params)
             return d
@@ -91,17 +91,17 @@ class ElasticSearch(object):
         return d
 
     def _validateIndexes(self, indexes=None):
-        indexes = indexes or self.defaultIndexes
-        if isinstance(indexes, basestring):
-            return [indexes]
-        return indexes
+        indices = indexes or self.defaultIndexes
+        if isinstance(indices, basestring):
+            return [indices]
+        return indices
 
     def status(self, indexes=None):
         """
         Retrieve the status of one or more indices
         """
-        indexes = self._validateIndexes(indexes)
-        path = self._makePath([','.join(indexes), "_status"])
+        indices = self._validateIndexes(indexes)
+        path = self._makePath([','.join(indices), "_status"])
         d = self._sendRequest("GET", path)
         return d
 
@@ -303,8 +303,8 @@ class ElasticSearch(object):
             self.refreshed = True
             return results
 
-        indexes = self._validateIndexes(indexes)
-        path = self._makePath([','.join(indexes), "_optimize"])
+        indices = self._validateIndexes(indexes)
+        path = self._makePath([','.join(indices), "_optimize"])
         params = {"wait_for_merge": waitForMerge,
                   "only_expunge_deletes": onlyExpungeDeletes,
                   "refesh": refresh,
@@ -332,8 +332,8 @@ class ElasticSearch(object):
         """
         Gateway shapshot one or more indices
         """
-        indexes = self._validateIndexes(indexes)
-        path = self._makePath([','.join(indexes), "_gateway", "snapshot"])
+        indices = self._validateIndexes(indexes)
+        path = self._makePath([','.join(indices), "_gateway", "snapshot"])
         d = self._sendRequest("POST", path)
         return d
 
@@ -342,8 +342,8 @@ class ElasticSearch(object):
         Register specific mapping definition for a specific type against
         one or more indices.
         """
-        indexes = self._validateIndexes(indexes)
-        path = self._makePath([','.join(indexes), docType, "_mapping"])
+        indices = self._validateIndexes(indexes)
+        path = self._makePath([','.join(indices), docType, "_mapping"])
         if docType not in mapping:
             mapping = {docType: mapping}
         self.refreshed = False
@@ -354,8 +354,8 @@ class ElasticSearch(object):
         """
         Get the mapping definition
         """
-        indexes = self._validateIndexes(indexes)
-        path = [','.join(indexes)]
+        indices = self._validateIndexes(indexes)
+        path = [','.join(indices)]
 
         if docType:
             path.append(docType)
@@ -381,9 +381,9 @@ class ElasticSearch(object):
         d.addCallback(factor)
         return d
 
-    def clusterHealth(self, indexes=None, level="cluster",
-                      waitForStatus=None, waitForRelocatingShards=None,
-                      waitForNodes=None, timeout=30):
+    def clusterHealth(self, level="cluster", waitForStatus=None,
+                      waitForRelocatingShards=None, waitForNodes=None,
+                      timeout=30):
         """
         Check the current cluster health
         """
@@ -547,13 +547,13 @@ class ElasticSearch(object):
         Delete documents from one or more indexes and one or more types
         based on query.
         """
-        indexes = self._validateIndexes(indexes)
+        indices = self._validateIndexes(indexes)
         if not docTypes:
             docTypes = []
         elif isinstance(docTypes, basestring):
             docTypes = [docTypes]
 
-        path = self._makePath([','.join(indexes), ','.join(docTypes),
+        path = self._makePath([','.join(indices), ','.join(docTypes),
                                "_query"])
         d = self._sendRequest("DELETE", path, body=body, params=params)
         return d
@@ -582,8 +582,8 @@ class ElasticSearch(object):
         """
         Execute a search agains one or more indices
         """
-        indexes = self._validateIndexes(indexes)
-        d = self._sendQuery("_search", query, indexes, docType, **params)
+        indices = self._validateIndexes(indexes)
+        d = self._sendQuery("_search", query, indices, docType, **params)
         return d
 
     def scan(self, query, indexes=None, docTypes=None, scrollTimeout="10m",
@@ -627,12 +627,12 @@ class ElasticSearch(object):
         Execute a search query against one or more indices and reindex the
         hits.
         """
-        indexes = self._validateIndexes(indexes)
+        indices = self._validateIndexes(indexes)
         if not docTypes:
             docTypes = []
         elif isinstance(docTypes, basestring):
             docTypes = [docTypes]
-        path = self._makePath([','.join(indexes), ','.join(docTypes),
+        path = self._makePath([','.join(indices), ','.join(docTypes),
                                "_reindexbyquery"])
         d = self._sendRequest("POST", path, body=query, params=params)
         return d
@@ -641,8 +641,8 @@ class ElasticSearch(object):
         """
         Execute a query against one or more indices and get the hit count
         """
-        indexes = self._balidateIndexes(indexes)
-        d = self._sendQuery("_count", query, indexes, docTypes, **params)
+        indices = self._balidateIndexes(indexes)
+        d = self._sendQuery("_count", query, indices, docTypes, **params)
 
     def createRiver(self, river, riverName=None):
         """
