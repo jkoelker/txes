@@ -69,11 +69,12 @@ class ElasticSearch(object):
                    **params):
         def sendIt(_=None):
             indices = self._validateIndexes(indexes)
-            if docTypes is None:
-                docTypes = []
-            elif isinstance(docTypes, basestring):
-                docTypes = [docTypes]
-            path = self._makePath([','.join(indices), ','.join(docTypes),
+            dt = docTypes
+            if dt is None:
+                dt = []
+            elif isinstance(dt, basestring):
+                dt = [dt]
+            path = self._makePath([','.join(indices), ','.join(dt),
                                    queryType])
             d = self._sendRequest("GET", path, body=query, params=params)
             return d
