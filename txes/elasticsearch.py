@@ -67,7 +67,7 @@ class ElasticSearch(object):
 
     def _sendQuery(self, queryType, query, indexes=None, docTypes=None,
                    **params):
-        def sendIt(_=None):
+        def sendIt(_):
             indices = self._validateIndexes(indexes)
             dt = docTypes
             if dt is None:
@@ -251,7 +251,7 @@ class ElasticSearch(object):
         return d
 
     def flush(self, indexes=None, refresh=None):
-        def flushIt(_=None):
+        def flushIt(_):
             indices= self._validateIndexes(indexes)
             path = self._makePath([','.join(indices), "_flush"])
             params = None
@@ -280,7 +280,7 @@ class ElasticSearch(object):
             d.addCallback(wait)
             return d
 
-        def refreshIt(_=None):
+        def refreshIt(_):
             indices= self._validateIndexes(indexes)
             path = self._makePath([','.join(indices), "_refresh"])
             d = self._sendRequest("POST", path)
