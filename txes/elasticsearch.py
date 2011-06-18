@@ -583,7 +583,7 @@ class ElasticSearch(object):
         Execute a search agains one or more indices
         """
         indexes = self._validateIndexes(indexes)
-        d = self._sendQuery("_search", query, indexes, docTypes, **params)
+        d = self._sendQuery("_search", query, indexes, docType, **params)
         return d
 
     def scan(self, query, indexes=None, docTypes=None, scrollTimeout="10m",
