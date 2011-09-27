@@ -30,7 +30,7 @@ class ElasticSearch(object):
         self.retryTime = retryTime
         self.discoveryInterval = discoveryInterval
         self.autorefresh = autorefresh
-        self.refeshed = True
+        self.refreshed = True
 
         self.info = {}
         self.bulkData = []
