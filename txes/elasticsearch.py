@@ -523,7 +523,7 @@ class ElasticSearch(object):
         if not len(self.bulkData):
             return defer.succeed(None)
 
-        data = '\n'.join(self.buldData)
+        data = '\n'.join(self.bulkData)
         d = self._sendRequest("POST", "/_bulk", body=data)
         self.bulkData = []
         return d
